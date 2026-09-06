@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -57,10 +58,16 @@
     #game-over.hidden { display: none; }
     h1 { font-size: clamp(2rem, 8vw, 3.5rem); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
     #start-screen { display: flex; flex-direction: column; align-items: center; max-width: 92%; }
-    #start-screen h1 { animation: floaty 2.4s ease-in-out infinite; display: inline-block; }
+    .logo { font-family: 'Press Start 2P', monospace; font-size: clamp(1.7rem, 9vw, 3rem); line-height: 1.25; text-align: center; animation: floaty 2.4s ease-in-out infinite; text-shadow: -3px -3px 0 #1a1a2e, 3px -3px 0 #1a1a2e, -3px 3px 0 #1a1a2e, 3px 3px 0 #1a1a2e, 0 6px 0 rgba(26,26,46,0.9); }
     @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    #medal { font-size: clamp(1.6rem, 5vw, 2.2rem); }
-    .score-display { font-size: clamp(3rem, 12vw, 5rem); font-weight: 700; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
+    #medal { margin-top: 0.9rem; width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; border: 4px solid #1a1a2e; box-shadow: 0 4px 0 rgba(26,26,46,0.9); }
+    #medal:empty { display: none; }
+    .medal-none { background: radial-gradient(circle at 35% 30%, #e8e8e8, #9a9a9a); color: #5a5a5a; }
+    .medal-bronze { background: radial-gradient(circle at 35% 30%, #ffc59b, #cd7f32 70%); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+    .medal-silver { background: radial-gradient(circle at 35% 30%, #ffffff, #b8c4cc 70%); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+    .medal-gold { background: radial-gradient(circle at 35% 30%, #ffe98a, #f0b400 70%); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+    .medal-plat { background: radial-gradient(circle at 35% 30%, #e6fbff, #7de3f4 70%); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+    .score-display { font-family: 'Press Start 2P', monospace; font-size: clamp(1.6rem, 7vw, 2.6rem); font-weight: 400; line-height: 1.2; color: #fff; text-shadow: -3px -3px 0 #1a1a2e, 3px -3px 0 #1a1a2e, -3px 3px 0 #1a1a2e, 3px 3px 0 #1a1a2e, 0 5px 0 rgba(26,26,46,0.9); }
     #playing-ui .score-display { margin-top: 12px; }
     #playing-ui { justify-content: flex-start; padding-top: max(10px, env(safe-area-inset-top)); pointer-events: none; }
     .best-display { font-size: clamp(1rem, 3vw, 1.25rem); opacity: 0.7; margin-top: 0.5rem; font-weight: 600; }
@@ -68,9 +75,9 @@
     @keyframes pop { 0% { transform: scale(0.5); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
     button {
       pointer-events: auto;
-      background: #1a1a2e;
+      background: linear-gradient(#8fe063, #5cb531);
       color: #fff;
-      border: none;
+      border: 3px solid #1a1a2e;
       padding: 1rem 2.5rem;
       font-size: clamp(1rem, 3.5vw, 1.25rem);
       font-weight: 700;
@@ -92,9 +99,9 @@
     <canvas id="canvas"></canvas>
     <div id="ui">
       <div id="start-screen">
-        <h1>flappy bird</h1>
+        <div class="logo" aria-label="flappy bird"><div><span style="color:#ffd23f">F</span><span style="color:#7dd956">l</span><span style="color:#ff5d7e">a</span><span style="color:#54c1ff">p</span><span style="color:#b678ff">p</span><span style="color:#7dd956">y</span></div><div><span style="color:#ffd23f">B</span><span style="color:#ff5d7e">i</span><span style="color:#54c1ff">r</span><span style="color:#b678ff">d</span></div></div>
         <button id="start-btn">tap to start</button>
-        <p class="instructions" id="howto">tap anywhere or press space to flap</p>
+        <p class="instructions" id="howto">tap anywhere to flap</p>
       </div>
       <div id="playing-ui" class="hidden">
         <div class="score-display" id="score">0</div>
@@ -123,12 +130,12 @@
     const medalEl = document.getElementById('medal');
     const remarkEl = document.getElementById('remark');
     const MEDALS = [
-      [30, '💎', 'diamond legend!'],
-      [20, '🥇', 'gold glider!'],
-      [10, '🥈', 'silver soarer!'],
-      [5, '🥉', 'bronze flapper!'],
-      [1, '🐣', 'baby bird walk!'],
-      [0, '🥚', 'warmup run!']
+      [30, 'medal-plat', '★', 'diamond legend!'],
+      [20, 'medal-gold', '★', 'gold glider!'],
+      [10, 'medal-silver', '★', 'silver soarer!'],
+      [5, 'medal-bronze', '★', 'bronze flapper!'],
+      [1, 'medal-none', '★', 'baby bird walk!'],
+      [0, 'medal-none', '–', 'warmup run!']
     ];
     const startBtn = document.getElementById('start-btn');
     const restartBtn = document.getElementById('restart-btn');
@@ -172,12 +179,12 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (bird) {
         bird.x = Math.round(width * 0.28);
-        bird.radius = Math.max(11, Math.round(width * 0.038));
+        bird.radius = Math.max(14, Math.round(width * 0.05));
       }
     }
 
     function reset() {
-      bird = { x: Math.round(width * 0.28), y: height / 2, velocity: 0, radius: Math.max(11, Math.round(width * 0.038)), rotation: 0 };
+      bird = { x: Math.round(width * 0.28), y: height / 2, velocity: 0, radius: Math.max(14, Math.round(width * 0.05)), rotation: 0 };
       pipes = [];
       clouds = [];
       for (let i = 0; i < 7; i++) {
@@ -377,7 +384,7 @@
       bestScoreEl.className = 'best-display' + (isBest && score > 0 ? ' new-best' : '');
       if (isBest && score > 0) bestScoreEl.textContent += ' — new!';
       for (const m of MEDALS) {
-        if (score >= m[0]) { medalEl.textContent = m[1]; remarkEl.textContent = m[2]; break; }
+        if (score >= m[0]) { medalEl.textContent = m[2]; medalEl.className = m[1]; remarkEl.textContent = m[3]; break; }
       }
       // death juice: hit-stop freeze, shake, flash, feather burst, thud, confetti rain on new best
       shake = 12; flash = 0.5; hitstop = 7;
@@ -519,6 +526,15 @@
         ctx.fill();
       }
       ctx.restore();
+
+      // distant city silhouette
+      ctx.fillStyle = 'rgba(160,200,215,0.7)';
+      const cityH = [46, 70, 38, 84, 56, 96, 44, 66, 52, 78, 40, 60];
+      const cw = width / cityH.length;
+      for (let i = 0; i < cityH.length; i++) {
+        const ch = cityH[i] * (height / 700);
+        ctx.fillRect(i * cw + 2, playH + 28 - ch, cw - 4, ch);
+      }
 
       // distant hills
       ctx.fillStyle = '#6fb894';
@@ -760,9 +776,10 @@
     try { bestScore = parseInt(localStorage.getItem('flappy-best') || '0', 10) || 0; } catch (e) {}
     bestScoreEl.textContent = 'best: ' + bestScore;
     try {
-      if (window.matchMedia && matchMedia('(pointer: coarse)').matches) {
-        document.getElementById('howto').textContent = 'tap anywhere to flap';
-      }
+      document.getElementById('howto').textContent =
+        (window.matchMedia && matchMedia('(pointer: coarse)').matches)
+          ? 'tap anywhere to flap'
+          : 'tap anywhere or press space to flap';
     } catch (e) {}
 
     resize();
