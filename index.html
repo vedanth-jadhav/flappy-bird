@@ -8,6 +8,8 @@
 <!-- sprites + sounds: MIT pack by samuel custodio (github.com/samuelcust/flappy-bird-assets) -->
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
   <link rel="apple-touch-icon" href="assets/yellowbird-midflap.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#70c5ce">
   <title>flappy bird</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -269,7 +271,31 @@
         if (a) { a.currentTime = 0; const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); }
       } catch (e) {}
     }
-    function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+    // immersive haptics: every game moment gets its own texture.
+    // (android chrome only — ios safari ignores vibration, sfx + visual pops cover it there.)
+    let HAPTICS = true;
+    let flapAlt = false;
+    const HAPTIC_PATTERNS = {
+      flap: [10],                    // light wing tick, alternates 10/14ms so taps feel organic
+      flap2: [14],
+      score: [12, 40, 24],           // crisp double-tick on pipe clear
+      nearMiss: [18, 40, 44],        // heartbeat skip for CLOSE! bonuses
+      combo2: [12, 30, 16, 30, 22],  // triple-tick when the streak starts
+      combo3: [14, 30, 18, 30, 30],  // longer roll as heat builds
+      combo5: [18, 30, 22, 30, 40],  // full rumble at beast mode
+      milestone: [24, 60, 24, 60, 48], // celebration every 5 points
+      death: [90, 60, 140],          // heavy thud, lands inside the hit-stop freeze
+      best: [90, 60, 140, 60, 180],  // fanfare roll under the confetti
+      start: [20, 50, 30],           // launch swoosh
+    };
+    function haptic(name) {
+      if (!HAPTICS) return;
+      try {
+        const p = HAPTIC_PATTERNS[name];
+        if (p !== undefined && navigator.vibrate) navigator.vibrate(p);
+      } catch (e) {}
+    }
+    function buzz(p) { try { if (HAPTICS && navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
 
     function clampStep(dt) { return Math.min(Math.max(dt || 1, 0.25), 3); }
 
@@ -362,7 +388,13 @@
           const nearMiss = clearance < 14;
           score += nearMiss ? 2 : 1;
           scoreEl.textContent = score;
-          sfx('point'); buzz(25);
+          sfx('point');
+          if (score % 5 === 0) haptic('milestone');
+          else if (nearMiss) haptic('nearMiss');
+          else if (combo >= 5) haptic('combo5');
+          else if (combo >= 3) haptic('combo3');
+          else if (combo >= 2) haptic('combo2');
+          else haptic('score');
           rings.push({ x: p.x + PIPE_WIDTH / 2, y: p.gapY, r: 12, age: 0, life: 32 });
           if (nearMiss) {
             floats.push({ x: bird.x + 30, y: bird.y - 30, txt: 'CLOSE! +2', age: 0, life: 60, size: 26 });
@@ -408,9 +440,9 @@
       // death juice: hit-stop freeze, shake, flash, feather burst, thud, confetti rain on new best
       shake = 12; flash = 0.5; hitstop = 7;
       burst(bird.x, bird.y, 26, ['255,224,102', '240,156,0', '255,255,255'], 4, 55, 0.25);
-      sfx('hit'); buzz([70, 40, 90]);
+      sfx('hit'); haptic('death');
       if (isBest && score > 0) {
-        sfx('swoosh'); buzz([70, 40, 90, 40, 150]);
+        sfx('swoosh'); haptic('best');
         const cols = ['255,92,92', '255,215,80', '125,217,86', '150,200,255', '200,150,255'];
         for (let i = 0; i < 90; i++) {
           confetti.push({ x: Math.random() * width, y: -20 - Math.random() * 140,
@@ -423,9 +455,10 @@
       gameOverScreen.classList.remove('hidden');
     }
 
+    function flapBuzz() { flapAlt = !flapAlt; haptic(flapAlt ? 'flap2' : 'flap'); }
     function jump() {
-      if (gameState === 'start') { startGame(); bird.velocity = JUMP; sfx('wing'); buzz(8); }
-      else if (gameState === 'playing') { bird.velocity = JUMP; sfx('wing'); buzz(8); }
+      if (gameState === 'start') { startGame(); bird.velocity = JUMP; sfx('wing'); flapBuzz(); }
+      else if (gameState === 'playing') { bird.velocity = JUMP; sfx('wing'); flapBuzz(); }
       else if (gameState === 'over' && performance.now() - overAt > 800) { startGame(); }
     }
 
@@ -437,7 +470,7 @@
       // playingUI stays hidden: score renders as sprite digits on canvas
       lastTime = 0;
       lastPipeSpawn = performance.now();
-      sfx('swoosh');
+      sfx('swoosh'); haptic('start');
       kick();
     }
 
