@@ -693,14 +693,15 @@
         ctx.stroke();
       }
 
-      // combo meter, top-left clear of the score
+      // combo meter, top-left clear of the score (shrinks on narrow screens)
       if (combo >= 2 && gameState === 'playing') {
         const pop = 1 + Math.max(0, comboPop) / 18 * 0.5;
         const heat = combo >= 6 ? '#ff7847' : combo >= 3 ? '#ffd23f' : '#fff';
+        const narrow = width < 380;
         ctx.save();
-        ctx.translate(14, 34);
+        ctx.translate(narrow ? 10 : 14, narrow ? 28 : 34);
         ctx.scale(pop, pop);
-        ctx.font = '700 20px Space Grotesk, system-ui, sans-serif';
+        ctx.font = '700 ' + (narrow ? 15 : 20) + 'px Space Grotesk, system-ui, sans-serif';
         ctx.textAlign = 'left';
         ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(26,26,46,0.85)';
