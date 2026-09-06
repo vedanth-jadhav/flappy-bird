@@ -6,6 +6,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <title>flappy bird</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -17,7 +20,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+      font-family: 'Fredoka', 'Space Grotesk', system-ui, -apple-system, sans-serif;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -237,6 +240,7 @@
       } catch (e) {}
     }
     function flapSfx() { beep(500 + Math.random() * 120, 0.07, 'triangle', 0.06); }
+    function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
     function ding() { beep(880, 0.12, 'sine', 0.12); beep(1318, 0.2, 'sine', 0.1, 0.07); }
     function thud() { beep(150, 0.28, 'sawtooth', 0.1); }
     function fanfare() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.16, 'triangle', 0.1, i * 0.09)); }
@@ -332,7 +336,7 @@
           const nearMiss = clearance < 14;
           score += nearMiss ? 2 : 1;
           scoreEl.textContent = score;
-          ding();
+          ding(); buzz(25);
           rings.push({ x: p.x + PIPE_WIDTH / 2, y: p.gapY, r: 12, age: 0, life: 32 });
           if (nearMiss) {
             floats.push({ x: bird.x + 30, y: bird.y - 30, txt: 'CLOSE! +2', age: 0, life: 60, size: 26 });
@@ -378,9 +382,9 @@
       // death juice: hit-stop freeze, shake, flash, feather burst, thud, confetti rain on new best
       shake = 12; flash = 0.5; hitstop = 7;
       burst(bird.x, bird.y, 26, ['255,224,102', '240,156,0', '255,255,255'], 4, 55, 0.25);
-      thud();
+      thud(); buzz([70, 40, 90]);
       if (isBest && score > 0) {
-        fanfare();
+        fanfare(); buzz([70, 40, 90, 40, 150]);
         const cols = ['255,92,92', '255,215,80', '125,217,86', '150,200,255', '200,150,255'];
         for (let i = 0; i < 90; i++) {
           confetti.push({ x: Math.random() * width, y: -20 - Math.random() * 140,
@@ -394,8 +398,8 @@
     }
 
     function jump() {
-      if (gameState === 'start') { startGame(); bird.velocity = JUMP; flapSfx(); }
-      else if (gameState === 'playing') { bird.velocity = JUMP; flapSfx(); }
+      if (gameState === 'start') { startGame(); bird.velocity = JUMP; flapSfx(); buzz(8); }
+      else if (gameState === 'playing') { bird.velocity = JUMP; flapSfx(); buzz(8); }
       else if (gameState === 'over' && performance.now() - overAt > 800) { startGame(); }
     }
 
@@ -591,77 +595,79 @@
       ctx.fillStyle = 'rgba(0,0,0,0.15)';
       ctx.fillRect(0, playH, width, 3);
 
-      // bird
+      // bird — homage to the original: round yellow body, big eye, orange beak, 3-frame wing
       ctx.save();
       ctx.translate(bird.x, bird.y);
       ctx.rotate(bird.rotation);
       const r = bird.radius;
-      // tail
-      ctx.fillStyle = '#e09c00';
+      const OL = '#543847';
+      // body
+      const bg2 = ctx.createRadialGradient(-r * 0.35, -r * 0.45, r * 0.15, 0, 0, r * 1.25);
+      bg2.addColorStop(0, '#ffe45e');
+      bg2.addColorStop(0.55, '#fbd343');
+      bg2.addColorStop(1, '#f0a500');
+      ctx.fillStyle = bg2;
       ctx.beginPath();
-      ctx.moveTo(-r * 1.05, -r * 0.1);
-      ctx.lineTo(-r * 1.6, -r * 0.45);
-      ctx.lineTo(-r * 1.45, r * 0.15);
-      ctx.closePath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
-      // body with gradient
-      const bg = ctx.createRadialGradient(-r * 0.3, -r * 0.4, r * 0.2, 0, 0, r * 1.3);
-      bg.addColorStop(0, '#ffe066');
-      bg.addColorStop(0.6, '#f5b301');
-      bg.addColorStop(1, '#d18f00');
-      ctx.fillStyle = bg;
+      ctx.strokeStyle = OL;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      // lower shade crescent
+      ctx.fillStyle = 'rgba(214,120,0,0.28)';
       ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.15, r * 0.95, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, r * 0.52, r * 0.72, r * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#8a5f00';
+      // wing — 3 frames: up / mid / down
+      const frame = Math.floor(wingPhase / 1.2) % 3;
+      const wpos = frame === 0 ? [-0.15, -0.52, -0.65] : frame === 1 ? [-0.42, -0.05, -0.1] : [-0.3, 0.42, 0.55];
+      ctx.save();
+      ctx.translate(r * wpos[0], r * wpos[1]);
+      ctx.rotate(wpos[2]);
+      ctx.fillStyle = '#fff6e3';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 0.52, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = OL;
       ctx.lineWidth = 2;
       ctx.stroke();
-      // belly
-      ctx.fillStyle = '#fff3c4';
+      ctx.fillStyle = '#f4a259';
+      ctx.fillRect(-r * 0.52, -r * 0.1, r * 1.04, r * 0.2);
+      ctx.restore();
+      // beak: lower then upper
+      ctx.fillStyle = '#e85d04';
       ctx.beginPath();
-      ctx.ellipse(r * 0.1, r * 0.45, r * 0.62, r * 0.42, 0, 0, Math.PI * 2);
+      ctx.moveTo(r * 0.72, r * 0.12);
+      ctx.lineTo(r * 1.32, r * 0.14);
+      ctx.lineTo(r * 0.78, r * 0.42);
+      ctx.closePath();
       ctx.fill();
-      // wing (two-frame flap)
-      const up = Math.sin(wingPhase) > 0;
-      ctx.fillStyle = '#f08c00';
-      ctx.strokeStyle = '#8a5f00';
+      ctx.strokeStyle = OL;
       ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fb6500';
       ctx.beginPath();
-      if (up) ctx.ellipse(-r * 0.25, -r * 0.45, r * 0.62, r * 0.34, -0.6, 0, Math.PI * 2);
-      else ctx.ellipse(-r * 0.3, r * 0.35, r * 0.62, r * 0.34, 0.5, 0, Math.PI * 2);
+      ctx.moveTo(r * 0.68, -r * 0.22);
+      ctx.lineTo(r * 1.48, -r * 0.05);
+      ctx.lineTo(r * 0.74, r * 0.14);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
       // eye
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(r * 0.42, -r * 0.32, r * 0.36, 0, Math.PI * 2);
+      ctx.arc(r * 0.3, -r * 0.38, r * 0.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#8a5f00';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = OL;
+      ctx.lineWidth = 2.5;
       ctx.stroke();
       ctx.fillStyle = '#1a1a2e';
       ctx.beginPath();
-      ctx.arc(r * 0.52, -r * 0.32, r * 0.17, 0, Math.PI * 2);
+      ctx.arc(r * 0.4, -r * 0.36, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(r * 0.57, -r * 0.38, r * 0.06, 0, Math.PI * 2);
-      ctx.fill();
-      // beak
-      ctx.fillStyle = '#f76707';
-      ctx.beginPath();
-      ctx.moveTo(r * 1.02, -r * 0.12);
-      ctx.lineTo(r * 1.6, r * 0.02);
-      ctx.lineTo(r * 1.02, r * 0.3);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#a61e00';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      // cheek
-      ctx.fillStyle = 'rgba(240,98,0,0.35)';
-      ctx.beginPath();
-      ctx.arc(r * 0.15, r * 0.05, r * 0.2, 0, Math.PI * 2);
+      ctx.arc(r * 0.46, -r * 0.43, r * 0.07, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
@@ -678,7 +684,7 @@
       ctx.textAlign = 'center';
       for (const f of floats) {
         const a = Math.max(0, 1 - f.age / f.life);
-        ctx.font = '700 ' + f.size + 'px Space Grotesk, system-ui, sans-serif';
+        ctx.font = '600 ' + f.size + 'px Fredoka, "Comic Sans MS", system-ui, sans-serif';
         ctx.lineWidth = 5;
         ctx.strokeStyle = 'rgba(26,26,46,' + (a * 0.85).toFixed(2) + ')';
         ctx.strokeText(f.txt, f.x, f.y);
@@ -704,7 +710,7 @@
         ctx.save();
         ctx.translate(narrow ? 10 : 14, narrow ? 28 : 34);
         ctx.scale(pop, pop);
-        ctx.font = '700 ' + (narrow ? 15 : 20) + 'px Space Grotesk, system-ui, sans-serif';
+        ctx.font = '600 ' + (narrow ? 15 : 20) + 'px Fredoka, system-ui, sans-serif';
         ctx.textAlign = 'left';
         ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(26,26,46,0.85)';
