@@ -120,6 +120,8 @@
 
     let width = 320, height = 480;
     let bird, pipes, clouds, score, bestScore, gameState, lastPipeSpawn, lastTime, wingPhase, overAt, dist, loopRunning;
+    let parts, floats, confetti, shake, flash;
+    const MILESTONES = ['nice!', 'on fire!', 'unstoppable!', 'beast mode!', 'legend!', 'godlike!'];
 
     function resize() {
       const availW = window.innerWidth * 0.94;
@@ -151,6 +153,7 @@
       wingPhase = 0;
       overAt = 0;
       dist = 0;
+      parts = []; floats = []; confetti = []; shake = 0; flash = 0;
       lastPipeSpawn = 0;
       lastTime = 0;
       scoreEl.textContent = '0';
@@ -175,9 +178,68 @@
       pipes.push({ x: width + 10, gapY: gapY, passed: false });
     }
 
+    // tiny synth sfx, created on first user gesture; all calls guarded
+    let AC = null;
+    function beep(freq, dur, type, vol, when) {
+      try {
+        if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+        if (AC.state === 'suspended') AC.resume();
+        const t = AC.currentTime + (when || 0);
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type = type || 'sine';
+        o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol || 0.12, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t); o.stop(t + dur + 0.05);
+      } catch (e) {}
+    }
+    function flapSfx() { beep(500 + Math.random() * 120, 0.07, 'triangle', 0.06); }
+    function ding() { beep(880, 0.12, 'sine', 0.12); beep(1318, 0.2, 'sine', 0.1, 0.07); }
+    function thud() { beep(150, 0.28, 'sawtooth', 0.1); }
+    function fanfare() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.16, 'triangle', 0.1, i * 0.09)); }
+
+    function clampStep(dt) { return Math.min(Math.max(dt || 1, 0.25), 3); }
+
+    function updateFX(step) {
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        p.age += step;
+        p.x += p.vx * step; p.y += p.vy * step; p.vy += (p.g || 0) * step;
+        if (p.age > p.life) parts.splice(i, 1);
+      }
+      for (let i = floats.length - 1; i >= 0; i--) {
+        const f = floats[i];
+        f.age += step; f.y -= 1.1 * step;
+        if (f.age > f.life) floats.splice(i, 1);
+      }
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i];
+        c.age += step;
+        c.y += c.vy * step; c.x += Math.sin((c.age + c.ph) * 0.08) * 1.2 * step;
+        c.rot += c.vr * step;
+        if (c.y > height + 20) confetti.splice(i, 1);
+      }
+      if (parts.length > 260) parts.splice(0, parts.length - 260);
+      shake = Math.max(0, shake - step * 1.4);
+      flash = Math.max(0, flash - step * 0.07);
+    }
+
+    function burst(x, y, n, colors, spd, life, g) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = spd * (0.4 + Math.random());
+        parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1,
+          age: 0, life: life * (0.6 + Math.random() * 0.8), r: 2 + Math.random() * 3.5,
+          c: colors[(Math.random() * colors.length) | 0], g: g });
+      }
+    }
+
     function update(dt) {
       // dt in 60fps units (1 = one frame at 60hz)
-      const step = Math.min(Math.max(dt, 0.25), 3);
+      const step = clampStep(dt);
+      updateFX(step);
       wingPhase += step * 0.35;
 
       for (const c of clouds) {
@@ -186,6 +248,14 @@
       }
 
       if (gameState !== 'playing') return;
+
+      // sparkle trail
+      if (Math.random() < 0.7) {
+        parts.push({ x: bird.x - bird.radius, y: bird.y + (Math.random() - 0.5) * bird.radius,
+          vx: -1 - Math.random() * 1.5, vy: (Math.random() - 0.5) * 1.2,
+          age: 0, life: 22 + Math.random() * 16, r: 1.5 + Math.random() * 2.5,
+          c: Math.random() < 0.3 ? '255,215,80' : '255,255,255', g: 0 });
+      }
 
       bird.velocity = Math.min(bird.velocity + GRAVITY * step, MAX_FALL);
       bird.y += bird.velocity * step;
@@ -204,6 +274,13 @@
           p.passed = true;
           score++;
           scoreEl.textContent = score;
+          ding();
+          floats.push({ x: bird.x + 34, y: bird.y - 26, txt: '+1', age: 0, life: 45, size: 24 });
+          burst(p.x + PIPE_WIDTH / 2, p.gapY, 12, ['255,255,255', '255,215,80', '150,230,255'], 2.5, 30, 0.02);
+          if (score % 5 === 0) {
+            floats.push({ x: width / 2, y: height * 0.35, txt: MILESTONES[Math.min((score / 5 | 0) - 1, MILESTONES.length - 1)],
+              age: 0, life: 90, size: 34 });
+          }
         }
         if (bird.x + hr > p.x + 4 && bird.x - hr < p.x + PIPE_WIDTH - 4) {
           if (bird.y - hr < p.gapY - PIPE_GAP / 2 + 4 || bird.y + hr > p.gapY + PIPE_GAP / 2 - 4) {
@@ -231,13 +308,27 @@
       bestScoreEl.textContent = 'best: ' + bestScore;
       bestScoreEl.className = 'best-display' + (isBest && score > 0 ? ' new-best' : '');
       if (isBest && score > 0) bestScoreEl.textContent += ' — new!';
+      // death juice: shake, flash, feather burst, thud, confetti rain on new best
+      shake = 12; flash = 0.5;
+      burst(bird.x, bird.y, 26, ['255,224,102', '240,156,0', '255,255,255'], 4, 55, 0.25);
+      thud();
+      if (isBest && score > 0) {
+        fanfare();
+        const cols = ['255,92,92', '255,215,80', '125,217,86', '150,200,255', '200,150,255'];
+        for (let i = 0; i < 90; i++) {
+          confetti.push({ x: Math.random() * width, y: -20 - Math.random() * 140,
+            vy: 2 + Math.random() * 2.4, ph: Math.random() * 6.28, rot: Math.random() * 6.28,
+            vr: (Math.random() - 0.5) * 0.3, w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+            c: cols[(Math.random() * cols.length) | 0], age: 0 });
+        }
+      }
       playingUI.classList.add('hidden');
       gameOverScreen.classList.remove('hidden');
     }
 
     function jump() {
-      if (gameState === 'start') { startGame(); bird.velocity = JUMP; }
-      else if (gameState === 'playing') { bird.velocity = JUMP; }
+      if (gameState === 'start') { startGame(); bird.velocity = JUMP; flapSfx(); }
+      else if (gameState === 'playing') { bird.velocity = JUMP; flapSfx(); }
       else if (gameState === 'over' && performance.now() - overAt > 800) { startGame(); }
     }
 
@@ -253,7 +344,18 @@
     }
 
     function loop(time) {
-      if (gameState === 'over') { loopRunning = false; draw(); return; }
+      if (gameState === 'over') {
+        const dt = lastTime ? (time - lastTime) / 16.667 : 1;
+        lastTime = time;
+        updateFX(clampStep(dt));
+        draw();
+        if (parts.length || floats.length || confetti.length || shake > 0.3 || flash > 0.02) {
+          requestAnimationFrame(loop);
+        } else {
+          loopRunning = false;
+        }
+        return;
+      }
       const dt = lastTime ? (time - lastTime) / 16.667 : 1;
       lastTime = time;
       if (gameState === 'start' && time) {
@@ -303,6 +405,8 @@
 
     function draw() {
       const playH = height - GROUND_H;
+      ctx.save();
+      if (shake > 0.2) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
       const sky = ctx.createLinearGradient(0, 0, 0, height);
       sky.addColorStop(0, '#3d9bd1');
       sky.addColorStop(0.6, '#8fd0e8');
@@ -448,6 +552,44 @@
       ctx.arc(r * 0.15, r * 0.05, r * 0.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+
+      // particles (trail sparkles, score bursts, feathers)
+      for (const p of parts) {
+        const a = Math.max(0, 1 - p.age / p.life);
+        ctx.fillStyle = 'rgba(' + p.c + ',' + (a * 0.9).toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * (0.5 + a * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // floating texts (+1, milestones)
+      ctx.textAlign = 'center';
+      for (const f of floats) {
+        const a = Math.max(0, 1 - f.age / f.life);
+        ctx.font = '700 ' + f.size + 'px Space Grotesk, system-ui, sans-serif';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(26,26,46,' + (a * 0.85).toFixed(2) + ')';
+        ctx.strokeText(f.txt, f.x, f.y);
+        ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')';
+        ctx.fillText(f.txt, f.x, f.y);
+      }
+
+      // confetti rain (new best)
+      for (const c of confetti) {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.rot);
+        ctx.fillStyle = 'rgb(' + c.c + ')';
+        ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // impact flash
+      if (flash > 0.01) {
+        ctx.fillStyle = 'rgba(255,255,255,' + Math.min(flash, 0.6).toFixed(2) + ')';
+        ctx.fillRect(0, 0, width, height);
+      }
     }
 
     let lastTouchTime = 0;
