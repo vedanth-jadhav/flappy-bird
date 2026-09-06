@@ -50,9 +50,12 @@
       padding: 20px;
     }
     #start-screen, #game-over { pointer-events: auto; }
+    #game-over { display: flex; flex-direction: column; align-items: center; max-width: 92%; }
+    #game-over.hidden { display: none; }
     h1 { font-size: clamp(2rem, 8vw, 3.5rem); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
-    #start-screen h1 { animation: wob 2.4s ease-in-out infinite; display: inline-block; }
-    @keyframes wob { 0%, 100% { transform: rotate(-2deg) scale(1); } 50% { transform: rotate(2deg) scale(1.05); } }
+    #start-screen { display: flex; flex-direction: column; align-items: center; max-width: 92%; }
+    #start-screen h1 { animation: floaty 2.4s ease-in-out infinite; display: inline-block; }
+    @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     #medal { font-size: clamp(1.6rem, 5vw, 2.2rem); }
     .score-display { font-size: clamp(3rem, 12vw, 5rem); font-weight: 700; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
     #playing-ui .score-display { margin-top: 12px; }
@@ -88,7 +91,7 @@
       <div id="start-screen">
         <h1>flappy bird</h1>
         <button id="start-btn">tap to start</button>
-        <p class="instructions">tap anywhere or press space to flap</p>
+        <p class="instructions" id="howto">tap anywhere or press space to flap</p>
       </div>
       <div id="playing-ui" class="hidden">
         <div class="score-display" id="score">0</div>
@@ -750,6 +753,11 @@
     bestScore = 0;
     try { bestScore = parseInt(localStorage.getItem('flappy-best') || '0', 10) || 0; } catch (e) {}
     bestScoreEl.textContent = 'best: ' + bestScore;
+    try {
+      if (window.matchMedia && matchMedia('(pointer: coarse)').matches) {
+        document.getElementById('howto').textContent = 'tap anywhere to flap';
+      }
+    } catch (e) {}
 
     resize();
     reset();
