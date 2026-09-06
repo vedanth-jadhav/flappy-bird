@@ -97,10 +97,14 @@
     button:active { transform: translateY(3px); box-shadow: 0 1px 0 #000; }
     .instructions { font-size: clamp(0.875rem, 2.5vw, 1rem); opacity: 0.75; margin-top: 1rem; line-height: 1.5; font-weight: 600; }
     .hidden { display: none !important; }
+    /* invisible probe: lets JS read the OS safe-area (gesture pill, notch) in real px */
+    #inset-probe { position: fixed; left: 0; bottom: 0; width: 0; height: 0; visibility: hidden;
+      padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
   </style>
 </head>
 <body>
   <div id="game">
+    <div id="inset-probe"></div>
     <canvas id="canvas"></canvas>
     <div id="ui">
       <div id="start-screen">
@@ -163,12 +167,22 @@
     let combo, comboPop;
     const MILESTONES = ['nice!', 'on fire!', 'unstoppable!', 'beast mode!', 'legend!', 'godlike!'];
 
+    function safeInsets() {
+      // read OS gesture-pill / notch space in real px (0 where there is none)
+      try {
+        const cs = getComputedStyle(document.getElementById('inset-probe'));
+        return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+      } catch (e) { return { top: 0, bottom: 0 }; }
+    }
+
     function resize() {
       const vw = window.innerWidth, vh = window.innerHeight || window.outerHeight || 700;
+      const si = safeInsets();
       let w, h;
       if (vw <= 560) {
-        // phone: true fullscreen portrait, edge to edge
-        w = vw; h = vh;
+        // phone: true fullscreen portrait — canvas yields to the gesture pill / notch
+        // so the ground always sits above the system lines
+        w = vw; h = vh - si.top - si.bottom;
       } else {
         w = Math.min(vw * 0.94, 480);
         h = Math.min(vh * 0.9, 720, w * 1.5);
@@ -728,6 +742,10 @@
     }
 
     window.addEventListener('resize', () => { resize(); draw(); });
+    try {
+      // gesture pill / keyboard showing or hiding changes the visible area
+      if (window.visualViewport) visualViewport.addEventListener('resize', () => { resize(); draw(); });
+    } catch (e) {}
     window.addEventListener('keydown', handleInput);
     canvas.addEventListener('touchstart', handleInput, { passive: false });
     canvas.addEventListener('mousedown', handleInput);
