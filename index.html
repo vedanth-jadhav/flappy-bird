@@ -459,7 +459,7 @@
     function jump() {
       if (gameState === 'start') { startGame(); bird.velocity = JUMP; sfx('wing'); flapBuzz(); }
       else if (gameState === 'playing') { bird.velocity = JUMP; sfx('wing'); flapBuzz(); }
-      else if (gameState === 'over' && performance.now() - overAt > 800) { startGame(); }
+      // game over: ONLY the play again button restarts (no more accidental tap restarts)
     }
 
     function startGame() {
