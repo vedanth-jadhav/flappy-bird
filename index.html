@@ -47,6 +47,9 @@
     }
     #start-screen, #game-over { pointer-events: auto; }
     h1 { font-size: clamp(2rem, 8vw, 3.5rem); font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
+    #start-screen h1 { animation: wob 2.4s ease-in-out infinite; display: inline-block; }
+    @keyframes wob { 0%, 100% { transform: rotate(-2deg) scale(1); } 50% { transform: rotate(2deg) scale(1.05); } }
+    #medal { font-size: clamp(1.6rem, 5vw, 2.2rem); }
     .score-display { font-size: clamp(3rem, 12vw, 5rem); font-weight: 700; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
     #playing-ui .score-display { margin-top: 12px; }
     .best-display { font-size: clamp(1rem, 3vw, 1.25rem); opacity: 0.7; margin-top: 0.5rem; font-weight: 600; }
@@ -88,6 +91,8 @@
       <div id="game-over" class="hidden">
         <h1>game over</h1>
         <div class="score-display" id="final-score">0</div>
+        <div class="best-display" id="medal"></div>
+        <div class="best-display" id="remark"></div>
         <div class="best-display" id="best-score">best: 0</div>
         <button id="restart-btn">play again</button>
       </div>
@@ -104,6 +109,16 @@
     const scoreEl = document.getElementById('score');
     const finalScoreEl = document.getElementById('final-score');
     const bestScoreEl = document.getElementById('best-score');
+    const medalEl = document.getElementById('medal');
+    const remarkEl = document.getElementById('remark');
+    const MEDALS = [
+      [30, '💎', 'diamond legend!'],
+      [20, '🥇', 'gold glider!'],
+      [10, '🥈', 'silver soarer!'],
+      [5, '🥉', 'bronze flapper!'],
+      [1, '🐣', 'baby bird walk!'],
+      [0, '🥚', 'warmup run!']
+    ];
     const startBtn = document.getElementById('start-btn');
     const restartBtn = document.getElementById('restart-btn');
 
@@ -121,6 +136,8 @@
     let width = 320, height = 480;
     let bird, pipes, clouds, score, bestScore, gameState, lastPipeSpawn, lastTime, wingPhase, overAt, dist, loopRunning;
     let parts, floats, confetti, shake, flash;
+    let crowd, crowdMood, crowdT;
+    const CROWD_COLS = ['#ff6b9d', '#4ecdc4', '#a78bfa', '#ff9f43', '#54a0ff'];
     const MILESTONES = ['nice!', 'on fire!', 'unstoppable!', 'beast mode!', 'legend!', 'godlike!'];
 
     function resize() {
@@ -154,6 +171,13 @@
       overAt = 0;
       dist = 0;
       parts = []; floats = []; confetti = []; shake = 0; flash = 0;
+      crowd = []; crowdMood = 'idle'; crowdT = 0;
+      const nCrowd = 5;
+      for (let i = 0; i < nCrowd; i++) {
+        crowd.push({ x: 0.12 + 0.76 * i / (nCrowd - 1), // fraction of width
+          r: 15 + Math.random() * 5, type: i % 3, phase: Math.random() * 6.28,
+          col: CROWD_COLS[i % CROWD_COLS.length] });
+      }
       lastPipeSpawn = 0;
       lastTime = 0;
       scoreEl.textContent = '0';
@@ -224,6 +248,7 @@
       if (parts.length > 260) parts.splice(0, parts.length - 260);
       shake = Math.max(0, shake - step * 1.4);
       flash = Math.max(0, flash - step * 0.07);
+      if (crowdT > 0) { crowdT -= step; if (crowdT <= 0) crowdMood = 'idle'; }
     }
 
     function burst(x, y, n, colors, spd, life, g) {
@@ -281,6 +306,7 @@
             floats.push({ x: width / 2, y: height * 0.35, txt: MILESTONES[Math.min((score / 5 | 0) - 1, MILESTONES.length - 1)],
               age: 0, life: 90, size: 34 });
           }
+          crowdMood = 'cheer'; crowdT = 55;
         }
         if (bird.x + hr > p.x + 4 && bird.x - hr < p.x + PIPE_WIDTH - 4) {
           if (bird.y - hr < p.gapY - PIPE_GAP / 2 + 4 || bird.y + hr > p.gapY + PIPE_GAP / 2 - 4) {
@@ -308,8 +334,12 @@
       bestScoreEl.textContent = 'best: ' + bestScore;
       bestScoreEl.className = 'best-display' + (isBest && score > 0 ? ' new-best' : '');
       if (isBest && score > 0) bestScoreEl.textContent += ' — new!';
+      for (const m of MEDALS) {
+        if (score >= m[0]) { medalEl.textContent = m[1]; remarkEl.textContent = m[2]; break; }
+      }
       // death juice: shake, flash, feather burst, thud, confetti rain on new best
       shake = 12; flash = 0.5;
+      crowdMood = 'shock'; crowdT = 100;
       burst(bird.x, bird.y, 26, ['255,224,102', '240,156,0', '255,255,255'], 4, 55, 0.25);
       thud();
       if (isBest && score > 0) {
@@ -366,6 +396,105 @@
       update(dt);
       draw();
       requestAnimationFrame(loop);
+    }
+
+    // goofy ground crowd: watches the bird, cheers pipes, gasps at death
+    function drawCrowd() {
+      const t = performance.now();
+      const playH = height - GROUND_H;
+      for (const c of crowd) {
+        const cx = c.x * width;
+        const r = Math.max(12, width * 0.038) * (c.r / 17);
+        let hop = Math.sin(t / 420 + c.phase) * 2.2;
+        if (crowdMood === 'cheer') hop = Math.abs(Math.sin(t / 130 + c.phase)) * 15;
+        const wob = crowdMood === 'shock' ? Math.sin(t / 55 + c.phase) * 2.5 : 0;
+        const cy = playH - 2 - r * 0.75 - hop;
+        ctx.save();
+        ctx.translate(cx + wob, cy);
+        if (crowdMood === 'cheer') ctx.scale(1.1, 0.9);
+        // feet
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.45, r * 0.82, r * 0.32, r * 0.18, 0, 0, Math.PI * 2);
+        ctx.ellipse(r * 0.45, r * 0.82, r * 0.32, r * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // cat ears
+        if (c.type === 1) {
+          ctx.fillStyle = c.col;
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.75, -r * 0.45);
+          ctx.lineTo(-r * 0.55, -r * 1.15);
+          ctx.lineTo(-r * 0.1, -r * 0.6);
+          ctx.closePath();
+          ctx.moveTo(r * 0.75, -r * 0.45);
+          ctx.lineTo(r * 0.55, -r * 1.15);
+          ctx.lineTo(r * 0.1, -r * 0.6);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // body
+        const cg = ctx.createRadialGradient(-r * 0.3, -r * 0.4, r * 0.2, 0, 0, r * 1.25);
+        cg.addColorStop(0, '#ffffff');
+        cg.addColorStop(0.25, c.col);
+        cg.addColorStop(1, 'rgba(0,0,0,0.28)');
+        ctx.fillStyle = cg;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 0.95, r * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // eyes track the bird
+        const look = Math.max(-1, Math.min(1, (bird.x - cx) / 70));
+        const blink = ((t / 1000 + c.phase) % 4.2) < 0.14;
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.fillStyle = '#1a1a2e';
+        ctx.lineWidth = 2;
+        if (c.type === 2) {
+          // cyclops
+          if (blink || crowdMood === 'shock') {
+            ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.3, 0, Math.PI * 2); ctx.stroke();
+            if (crowdMood === 'shock') { ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
+          } else {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.32, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a1a2e';
+            ctx.beginPath(); ctx.arc(look * r * 0.14, -r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
+          }
+        } else if (blink) {
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.55, -r * 0.1); ctx.lineTo(-r * 0.15, -r * 0.1);
+          ctx.moveTo(r * 0.15, -r * 0.1); ctx.lineTo(r * 0.55, -r * 0.1);
+          ctx.stroke();
+        } else if (crowdMood === 'shock') {
+          // X eyes
+          for (const ex of [-r * 0.35, r * 0.35]) {
+            ctx.beginPath();
+            ctx.moveTo(ex - 5, -r * 0.25); ctx.lineTo(ex + 5, -r * 0.05);
+            ctx.moveTo(ex + 5, -r * 0.25); ctx.lineTo(ex - 5, -r * 0.05);
+            ctx.stroke();
+          }
+        } else {
+          for (const ex of [-r * 0.35, r * 0.35]) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(ex, -r * 0.12, r * 0.24, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a1a2e';
+            ctx.beginPath(); ctx.arc(ex + look * r * 0.1, -r * 0.12, r * 0.12, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        // mouth by mood
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        if (crowdMood === 'cheer') {
+          ctx.arc(0, r * 0.25, r * 0.35, 0.15 * Math.PI, 0.85 * Math.PI);
+        } else if (crowdMood === 'shock') {
+          ctx.fillStyle = '#1a1a2e';
+          ctx.arc(0, r * 0.4, r * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.arc(0, r * 0.15, r * 0.28, 0.25 * Math.PI, 0.75 * Math.PI);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     function drawPipe(x, y, h) {
@@ -478,6 +607,9 @@
       }
       ctx.fillStyle = 'rgba(0,0,0,0.15)';
       ctx.fillRect(0, playH, width, 3);
+
+      // goofy spectators on the ground
+      drawCrowd();
 
       // bird
       ctx.save();
