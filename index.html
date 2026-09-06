@@ -56,6 +56,7 @@
     #medal { font-size: clamp(1.6rem, 5vw, 2.2rem); }
     .score-display { font-size: clamp(3rem, 12vw, 5rem); font-weight: 700; line-height: 1; text-shadow: 0 2px 0 rgba(255,255,255,0.4); }
     #playing-ui .score-display { margin-top: 12px; }
+    #playing-ui { justify-content: flex-start; padding-top: max(10px, env(safe-area-inset-top)); pointer-events: none; }
     .best-display { font-size: clamp(1rem, 3vw, 1.25rem); opacity: 0.7; margin-top: 0.5rem; font-weight: 600; }
     .new-best { color: #e67e22; font-weight: 700; animation: pop 0.4s ease; }
     @keyframes pop { 0% { transform: scale(0.5); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
@@ -692,15 +693,15 @@
         ctx.stroke();
       }
 
-      // combo meter under the score
+      // combo meter, top-left clear of the score
       if (combo >= 2 && gameState === 'playing') {
         const pop = 1 + Math.max(0, comboPop) / 18 * 0.5;
         const heat = combo >= 6 ? '#ff7847' : combo >= 3 ? '#ffd23f' : '#fff';
         ctx.save();
-        ctx.translate(width / 2, 66);
+        ctx.translate(14, 34);
         ctx.scale(pop, pop);
         ctx.font = '700 20px Space Grotesk, system-ui, sans-serif';
-        ctx.textAlign = 'center';
+        ctx.textAlign = 'left';
         ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(26,26,46,0.85)';
         ctx.strokeText('x' + combo + ' COMBO', 0, 0);
