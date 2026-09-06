@@ -172,11 +172,12 @@
       dist = 0;
       parts = []; floats = []; confetti = []; shake = 0; flash = 0;
       crowd = []; crowdMood = 'idle'; crowdT = 0;
+      const CROWD_EMOJI = ['🐥', '🐸', '🐰', '🐷', '🐵'];
       const nCrowd = 5;
       for (let i = 0; i < nCrowd; i++) {
         crowd.push({ x: 0.12 + 0.76 * i / (nCrowd - 1), // fraction of width
-          r: 15 + Math.random() * 5, type: i % 3, phase: Math.random() * 6.28,
-          col: CROWD_COLS[i % CROWD_COLS.length] });
+          emoji: CROWD_EMOJI[i % CROWD_EMOJI.length], phase: Math.random() * 6.28,
+          hat: ['#ff5d5d', '#4ecdc4', '#a78bfa', '#ff9f43', '#54a0ff'][i % 5] });
       }
       lastPipeSpawn = 0;
       lastTime = 0;
@@ -398,103 +399,47 @@
       requestAnimationFrame(loop);
     }
 
-    // goofy ground crowd: watches the bird, cheers pipes, gasps at death
+    // cute animal crowd on the grass: bob, cheer-hops with party hats, gasps at death
     function drawCrowd() {
       const t = performance.now();
       const playH = height - GROUND_H;
+      const size = Math.max(26, Math.round(width * 0.078));
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       for (const c of crowd) {
         const cx = c.x * width;
-        const r = Math.max(12, width * 0.038) * (c.r / 17);
-        let hop = Math.sin(t / 420 + c.phase) * 2.2;
-        if (crowdMood === 'cheer') hop = Math.abs(Math.sin(t / 130 + c.phase)) * 15;
-        const wob = crowdMood === 'shock' ? Math.sin(t / 55 + c.phase) * 2.5 : 0;
-        const cy = playH - 2 - r * 0.75 - hop;
-        ctx.save();
-        ctx.translate(cx + wob, cy);
-        if (crowdMood === 'cheer') ctx.scale(1.1, 0.9);
-        // feet
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        let hop = Math.sin(t / 420 + c.phase) * 2.5;
+        let show = c.emoji;
+        let wob = 0;
+        if (crowdMood === 'cheer') hop = Math.abs(Math.sin(t / 130 + c.phase)) * 17;
+        else if (crowdMood === 'shock') { show = '😱'; wob = Math.sin(t / 55 + c.phase) * 2.5; }
+        const cy = playH + size * 0.42 - hop;
+        // ground shadow shrinks as they jump
+        const shScale = Math.max(0.4, 1 - hop / 40);
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
         ctx.beginPath();
-        ctx.ellipse(-r * 0.45, r * 0.82, r * 0.32, r * 0.18, 0, 0, Math.PI * 2);
-        ctx.ellipse(r * 0.45, r * 0.82, r * 0.32, r * 0.18, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, playH + size * 0.48, size * 0.32 * shScale, size * 0.1, 0, 0, Math.PI * 2);
         ctx.fill();
-        // cat ears
-        if (c.type === 1) {
-          ctx.fillStyle = c.col;
-          ctx.beginPath();
-          ctx.moveTo(-r * 0.75, -r * 0.45);
-          ctx.lineTo(-r * 0.55, -r * 1.15);
-          ctx.lineTo(-r * 0.1, -r * 0.6);
-          ctx.closePath();
-          ctx.moveTo(r * 0.75, -r * 0.45);
-          ctx.lineTo(r * 0.55, -r * 1.15);
-          ctx.lineTo(r * 0.1, -r * 0.6);
-          ctx.closePath();
-          ctx.fill();
-        }
-        // body
-        const cg = ctx.createRadialGradient(-r * 0.3, -r * 0.4, r * 0.2, 0, 0, r * 1.25);
-        cg.addColorStop(0, '#ffffff');
-        cg.addColorStop(0.25, c.col);
-        cg.addColorStop(1, 'rgba(0,0,0,0.28)');
-        ctx.fillStyle = cg;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, r * 0.95, r * 0.85, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // eyes track the bird
-        const look = Math.max(-1, Math.min(1, (bird.x - cx) / 70));
-        const blink = ((t / 1000 + c.phase) % 4.2) < 0.14;
-        ctx.strokeStyle = '#1a1a2e';
-        ctx.fillStyle = '#1a1a2e';
-        ctx.lineWidth = 2;
-        if (c.type === 2) {
-          // cyclops
-          if (blink || crowdMood === 'shock') {
-            ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.3, 0, Math.PI * 2); ctx.stroke();
-            if (crowdMood === 'shock') { ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
-          } else {
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.32, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#1a1a2e';
-            ctx.beginPath(); ctx.arc(look * r * 0.14, -r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
-          }
-        } else if (blink) {
-          ctx.beginPath();
-          ctx.moveTo(-r * 0.55, -r * 0.1); ctx.lineTo(-r * 0.15, -r * 0.1);
-          ctx.moveTo(r * 0.15, -r * 0.1); ctx.lineTo(r * 0.55, -r * 0.1);
-          ctx.stroke();
-        } else if (crowdMood === 'shock') {
-          // X eyes
-          for (const ex of [-r * 0.35, r * 0.35]) {
-            ctx.beginPath();
-            ctx.moveTo(ex - 5, -r * 0.25); ctx.lineTo(ex + 5, -r * 0.05);
-            ctx.moveTo(ex + 5, -r * 0.25); ctx.lineTo(ex - 5, -r * 0.05);
-            ctx.stroke();
-          }
-        } else {
-          for (const ex of [-r * 0.35, r * 0.35]) {
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(ex, -r * 0.12, r * 0.24, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#1a1a2e';
-            ctx.beginPath(); ctx.arc(ex + look * r * 0.1, -r * 0.12, r * 0.12, 0, Math.PI * 2); ctx.fill();
-          }
-        }
-        // mouth by mood
-        ctx.strokeStyle = '#1a1a2e';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
+        ctx.font = size + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
+        ctx.fillText(show, cx + wob, cy);
+        // party hat while cheering
         if (crowdMood === 'cheer') {
-          ctx.arc(0, r * 0.25, r * 0.35, 0.15 * Math.PI, 0.85 * Math.PI);
-        } else if (crowdMood === 'shock') {
-          ctx.fillStyle = '#1a1a2e';
-          ctx.arc(0, r * 0.4, r * 0.18, 0, Math.PI * 2);
+          const hw = size * 0.2, hh = size * 0.34;
+          const hx = cx + wob, hy = cy - size * 0.52;
+          ctx.fillStyle = c.hat;
+          ctx.beginPath();
+          ctx.moveTo(hx - hw, hy);
+          ctx.lineTo(hx, hy - hh);
+          ctx.lineTo(hx + hw, hy);
+          ctx.closePath();
           ctx.fill();
-        } else {
-          ctx.arc(0, r * 0.15, r * 0.28, 0.25 * Math.PI, 0.75 * Math.PI);
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(hx, hy - hh, size * 0.07, 0, Math.PI * 2);
+          ctx.fill();
         }
-        ctx.stroke();
-        ctx.restore();
       }
+      ctx.textBaseline = 'alphabetic';
     }
 
     function drawPipe(x, y, h) {
