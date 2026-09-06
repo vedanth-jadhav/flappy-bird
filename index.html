@@ -108,10 +108,11 @@
     const restartBtn = document.getElementById('restart-btn');
 
     // tuned at 60fps units; loop scales by real elapsed time
-    const GRAVITY = 0.45;
-    const JUMP = -9.5;
-    const MAX_FALL = 14;
-    const PIPE_GAP = 160;
+    const GRAVITY = 0.42;
+    const JUMP = -8;
+    const MAX_FALL = 13;
+    const PIPE_GAP = 185;
+    const HITBOX = 0.78;
     const PIPE_WIDTH = 64;
     const PIPE_SPEED = 2.6;
     const PIPE_SPACING_MS = 1500;
@@ -186,6 +187,7 @@
       if (now - lastPipeSpawn > PIPE_SPACING_MS) { spawnPipe(); lastPipeSpawn = now; }
 
       const playH = height - GROUND_H;
+      const hr = bird.radius * HITBOX;
       for (let i = pipes.length - 1; i >= 0; i--) {
         const p = pipes[i];
         p.x -= PIPE_SPEED * step;
@@ -194,8 +196,8 @@
           score++;
           scoreEl.textContent = score;
         }
-        if (bird.x + bird.radius > p.x + 4 && bird.x - bird.radius < p.x + PIPE_WIDTH - 4) {
-          if (bird.y - bird.radius < p.gapY - PIPE_GAP / 2 + 4 || bird.y + bird.radius > p.gapY + PIPE_GAP / 2 - 4) {
+        if (bird.x + hr > p.x + 4 && bird.x - hr < p.x + PIPE_WIDTH - 4) {
+          if (bird.y - hr < p.gapY - PIPE_GAP / 2 + 4 || bird.y + hr > p.gapY + PIPE_GAP / 2 - 4) {
             gameOver();
             return;
           }
