@@ -257,7 +257,7 @@
       const dt = lastTime ? (time - lastTime) / 16.667 : 1;
       lastTime = time;
       if (gameState === 'start' && time) {
-        bird.y = height / 2 + Math.sin(time / 350) * 10;
+        bird.y = height * 0.3 + Math.sin(time / 350) * 10;
         bird.rotation = Math.sin(time / 350 + 1) * 0.12;
         wingPhase += 0.3 * Math.min(Math.max(dt, 0.25), 3);
       }
