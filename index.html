@@ -135,9 +135,8 @@
 
     let width = 320, height = 480;
     let bird, pipes, clouds, score, bestScore, gameState, lastPipeSpawn, lastTime, wingPhase, overAt, dist, loopRunning;
-    let parts, floats, confetti, shake, flash;
-    let crowd, crowdMood, crowdT;
-    const CROWD_COLS = ['#ff6b9d', '#4ecdc4', '#a78bfa', '#ff9f43', '#54a0ff'];
+    let parts, floats, confetti, rings, shake, flash, hitstop;
+    let combo, comboPop;
     const MILESTONES = ['nice!', 'on fire!', 'unstoppable!', 'beast mode!', 'legend!', 'godlike!'];
 
     function resize() {
@@ -170,15 +169,8 @@
       wingPhase = 0;
       overAt = 0;
       dist = 0;
-      parts = []; floats = []; confetti = []; shake = 0; flash = 0;
-      crowd = []; crowdMood = 'idle'; crowdT = 0;
-      const CROWD_EMOJI = ['🐥', '🐸', '🐰', '🐷', '🐵'];
-      const nCrowd = 5;
-      for (let i = 0; i < nCrowd; i++) {
-        crowd.push({ x: 0.12 + 0.76 * i / (nCrowd - 1), // fraction of width
-          emoji: CROWD_EMOJI[i % CROWD_EMOJI.length], phase: Math.random() * 6.28,
-          hat: ['#ff5d5d', '#4ecdc4', '#a78bfa', '#ff9f43', '#54a0ff'][i % 5] });
-      }
+      parts = []; floats = []; confetti = []; rings = []; shake = 0; flash = 0; hitstop = 0;
+      combo = 0; comboPop = 0;
       lastPipeSpawn = 0;
       lastTime = 0;
       scoreEl.textContent = '0';
@@ -249,7 +241,12 @@
       if (parts.length > 260) parts.splice(0, parts.length - 260);
       shake = Math.max(0, shake - step * 1.4);
       flash = Math.max(0, flash - step * 0.07);
-      if (crowdT > 0) { crowdT -= step; if (crowdT <= 0) crowdMood = 'idle'; }
+      if (comboPop > 0) comboPop -= step;
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const g = rings[i];
+        g.age += step; g.r += 7 * step;
+        if (g.age > g.life) rings.splice(i, 1);
+      }
     }
 
     function burst(x, y, n, colors, spd, life, g) {
@@ -275,12 +272,13 @@
 
       if (gameState !== 'playing') return;
 
-      // sparkle trail
+      // sparkle trail, heats up with combo
       if (Math.random() < 0.7) {
+        const heat = combo >= 6 ? '255,120,40' : combo >= 3 ? '255,200,60' : (Math.random() < 0.3 ? '255,215,80' : '255,255,255');
         parts.push({ x: bird.x - bird.radius, y: bird.y + (Math.random() - 0.5) * bird.radius,
           vx: -1 - Math.random() * 1.5, vy: (Math.random() - 0.5) * 1.2,
-          age: 0, life: 22 + Math.random() * 16, r: 1.5 + Math.random() * 2.5,
-          c: Math.random() < 0.3 ? '255,215,80' : '255,255,255', g: 0 });
+          age: 0, life: 22 + Math.random() * 16, r: 1.5 + Math.random() * 2.5 + Math.min(combo * 0.15, 2),
+          c: heat, g: 0 });
       }
 
       bird.velocity = Math.min(bird.velocity + GRAVITY * step, MAX_FALL);
@@ -298,16 +296,26 @@
         p.x -= PIPE_SPEED * step;
         if (!p.passed && p.x + PIPE_WIDTH < bird.x - bird.radius) {
           p.passed = true;
-          score++;
+          combo++;
+          comboPop = 18;
+          // near-miss: thread the lip, earn the bonus
+          const clearance = Math.min((bird.y - hr) - (p.gapY - PIPE_GAP / 2), (p.gapY + PIPE_GAP / 2) - (bird.y + hr));
+          const nearMiss = clearance < 14;
+          score += nearMiss ? 2 : 1;
           scoreEl.textContent = score;
           ding();
-          floats.push({ x: bird.x + 34, y: bird.y - 26, txt: '+1', age: 0, life: 45, size: 24 });
+          rings.push({ x: p.x + PIPE_WIDTH / 2, y: p.gapY, r: 12, age: 0, life: 32 });
+          if (nearMiss) {
+            floats.push({ x: bird.x + 30, y: bird.y - 30, txt: 'CLOSE! +2', age: 0, life: 60, size: 26 });
+            burst(bird.x, bird.y, 14, ['255,180,60', '255,255,255'], 3, 35, 0.02);
+          } else {
+            floats.push({ x: bird.x + 34, y: bird.y - 26, txt: '+1', age: 0, life: 45, size: 24 });
+          }
           burst(p.x + PIPE_WIDTH / 2, p.gapY, 12, ['255,255,255', '255,215,80', '150,230,255'], 2.5, 30, 0.02);
           if (score % 5 === 0) {
             floats.push({ x: width / 2, y: height * 0.35, txt: MILESTONES[Math.min((score / 5 | 0) - 1, MILESTONES.length - 1)],
               age: 0, life: 90, size: 34 });
           }
-          crowdMood = 'cheer'; crowdT = 55;
         }
         if (bird.x + hr > p.x + 4 && bird.x - hr < p.x + PIPE_WIDTH - 4) {
           if (bird.y - hr < p.gapY - PIPE_GAP / 2 + 4 || bird.y + hr > p.gapY + PIPE_GAP / 2 - 4) {
@@ -338,9 +346,8 @@
       for (const m of MEDALS) {
         if (score >= m[0]) { medalEl.textContent = m[1]; remarkEl.textContent = m[2]; break; }
       }
-      // death juice: shake, flash, feather burst, thud, confetti rain on new best
-      shake = 12; flash = 0.5;
-      crowdMood = 'shock'; crowdT = 100;
+      // death juice: hit-stop freeze, shake, flash, feather burst, thud, confetti rain on new best
+      shake = 12; flash = 0.5; hitstop = 7;
       burst(bird.x, bird.y, 26, ['255,224,102', '240,156,0', '255,255,255'], 4, 55, 0.25);
       thud();
       if (isBest && score > 0) {
@@ -375,12 +382,20 @@
     }
 
     function loop(time) {
+      // hit-stop: freeze a beat on death for impact
+      if (hitstop > 0) {
+        hitstop -= clampStep(lastTime ? (time - lastTime) / 16.667 : 1);
+        lastTime = time;
+        draw();
+        requestAnimationFrame(loop);
+        return;
+      }
       if (gameState === 'over') {
         const dt = lastTime ? (time - lastTime) / 16.667 : 1;
         lastTime = time;
         updateFX(clampStep(dt));
         draw();
-        if (parts.length || floats.length || confetti.length || shake > 0.3 || flash > 0.02) {
+        if (parts.length || floats.length || confetti.length || rings.length || shake > 0.3 || flash > 0.02) {
           requestAnimationFrame(loop);
         } else {
           loopRunning = false;
@@ -397,49 +412,6 @@
       update(dt);
       draw();
       requestAnimationFrame(loop);
-    }
-
-    // cute animal crowd on the grass: bob, cheer-hops with party hats, gasps at death
-    function drawCrowd() {
-      const t = performance.now();
-      const playH = height - GROUND_H;
-      const size = Math.max(26, Math.round(width * 0.078));
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (const c of crowd) {
-        const cx = c.x * width;
-        let hop = Math.sin(t / 420 + c.phase) * 2.5;
-        let show = c.emoji;
-        let wob = 0;
-        if (crowdMood === 'cheer') hop = Math.abs(Math.sin(t / 130 + c.phase)) * 17;
-        else if (crowdMood === 'shock') { show = '😱'; wob = Math.sin(t / 55 + c.phase) * 2.5; }
-        const cy = playH + size * 0.42 - hop;
-        // ground shadow shrinks as they jump
-        const shScale = Math.max(0.4, 1 - hop / 40);
-        ctx.fillStyle = 'rgba(0,0,0,0.22)';
-        ctx.beginPath();
-        ctx.ellipse(cx, playH + size * 0.48, size * 0.32 * shScale, size * 0.1, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.font = size + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
-        ctx.fillText(show, cx + wob, cy);
-        // party hat while cheering
-        if (crowdMood === 'cheer') {
-          const hw = size * 0.2, hh = size * 0.34;
-          const hx = cx + wob, hy = cy - size * 0.52;
-          ctx.fillStyle = c.hat;
-          ctx.beginPath();
-          ctx.moveTo(hx - hw, hy);
-          ctx.lineTo(hx, hy - hh);
-          ctx.lineTo(hx + hw, hy);
-          ctx.closePath();
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.beginPath();
-          ctx.arc(hx, hy - hh, size * 0.07, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.textBaseline = 'alphabetic';
     }
 
     function drawPipe(x, y, h) {
@@ -553,9 +525,6 @@
       ctx.fillStyle = 'rgba(0,0,0,0.15)';
       ctx.fillRect(0, playH, width, 3);
 
-      // goofy spectators on the ground
-      drawCrowd();
-
       // bird
       ctx.save();
       ctx.translate(bird.x, bird.y);
@@ -649,6 +618,33 @@
         ctx.strokeText(f.txt, f.x, f.y);
         ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')';
         ctx.fillText(f.txt, f.x, f.y);
+      }
+
+      // shockwave rings on pipe clear
+      for (const g of rings) {
+        const a = Math.max(0, 1 - g.age / g.life);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (a * 0.8).toFixed(2) + ')';
+        ctx.lineWidth = 1 + a * 4;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // combo meter under the score
+      if (combo >= 2 && gameState === 'playing') {
+        const pop = 1 + Math.max(0, comboPop) / 18 * 0.5;
+        const heat = combo >= 6 ? '#ff7847' : combo >= 3 ? '#ffd23f' : '#fff';
+        ctx.save();
+        ctx.translate(width / 2, 66);
+        ctx.scale(pop, pop);
+        ctx.font = '700 20px Space Grotesk, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(26,26,46,0.85)';
+        ctx.strokeText('x' + combo + ' COMBO', 0, 0);
+        ctx.fillStyle = heat;
+        ctx.fillText('x' + combo + ' COMBO', 0, 0);
+        ctx.restore();
       }
 
       // confetti rain (new best)
