@@ -512,7 +512,9 @@
       const dt = lastTime ? (time - lastTime) / 16.667 : 1;
       lastTime = time;
       if (gameState === 'start' && time) {
-        bird.y = height * 0.3 + Math.sin(time / 350) * 10;
+        // hover just below the get-ready art (art height scales with width, so anchor to it)
+        const artH = 154 * S * 0.8;
+        bird.y = height * 0.07 + artH + 44 + Math.sin(time / 350) * 10;
         bird.rotation = Math.sin(time / 350 + 1) * 0.12;
         wingPhase += 0.3 * Math.min(Math.max(dt, 0.25), 3);
       }
